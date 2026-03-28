@@ -69,12 +69,25 @@
 
     {{-- ── Area konten ── --}}
     <div class="nb-content">
-
+    
       {{-- Header --}}
-      <h1 class="nb-title text-3xl font-black uppercase tracking-tight leading-none mb-1"
-          style="font-family:'Space Grotesk',sans-serif">To-Do List</h1>
-      <p class="nb-subtitle text-xs font-bold uppercase tracking-widest opacity-40 mb-0.5">My Tasks</p>
-      <p class="nb-subtitle text-xs font-bold uppercase tracking-widest opacity-30 mb-4">Made by Anshoria</p>
+<div class="flex items-start justify-between mb-1">
+    <div>
+        <h1 class="nb-title text-3xl font-black uppercase tracking-tight leading-none mb-1"
+            style="font-family:'Space Grotesk',sans-serif">To-Do List</h1>
+        <p class="nb-subtitle text-xs font-bold uppercase tracking-widest opacity-40 mb-0.5">My Tasks</p>
+        <p class="nb-subtitle text-xs font-bold uppercase tracking-widest opacity-30 mb-4">Made by Anshoria</p>
+    </div>
+
+    <form action="{{ route('logout') }}" method="POST">
+        @csrf
+        <button type="submit"
+            class="nb-border nb-shadow-sm bg-black text-[#FFF176] font-black text-xs uppercase tracking-widest px-3 py-2 mt-1
+                   active:translate-x-0.5 active:translate-y-0.5 active:shadow-none">
+            Logout
+        </button>
+    </form>
+</div>
 
       {{-- Background picker --}}
       <div class="flex gap-2 mb-5">
@@ -108,6 +121,7 @@
       </div>
       @endif
 
+    <div wire:poll.3s> {{-- refresh setiap 3 detik --}}
       {{-- Todo list --}}
       @forelse ($todos as $todo)
       <div class="nb-todo-item nb-border nb-shadow flex items-center gap-3 bg-white px-3 py-3 mb-3
@@ -139,6 +153,7 @@
       </div>
       @endforelse
 
+      </div>
     </div>
     {{-- ── End nb-content ── --}}
 
@@ -166,42 +181,151 @@
 
   {{-- ── JS: scroll form ke atas saat keyboard muncul ── --}}
   <script>
-    (function () {
-      var input   = document.getElementById('nb-input');
-      var formBar = document.getElementById('nb-form-bar');
-      var scrollArea = document.getElementById('nb-scroll-area');
+(function () {
+  /* ── Audio Context (Web Audio API — no external file needed) ── */
+  function createCtx() {
+    return new (window.AudioContext || window.webkitAudioContext)();
+  }
 
-      if (!input || !formBar || !scrollArea) return;
+  /* Suara "pop" manis untuk tambah tugas */
+  function soundAdd() {
+    try {
+      const ctx = createCtx();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = 'sine';
+      o.frequency.setValueAtTime(440, ctx.currentTime);
+      o.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.08);
+      o.frequency.exponentialRampToValueAtTime(660, ctx.currentTime + 0.18);
+      g.gain.setValueAtTime(0.4, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+      o.start(); o.stop(ctx.currentTime + 0.25);
+    } catch(e){}
+  }
 
-      function scrollFormIntoView() {
+  /* Suara "check" satisfying untuk toggle done */
+  function soundCheck() {
+    try {
+      const ctx = createCtx();
+      [0, 0.06, 0.12].forEach((delay, i) => {
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.type = 'triangle';
+        o.frequency.value = [523, 659, 784][i];
+        g.gain.setValueAtTime(0.3, ctx.currentTime + delay);
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.18);
+        o.start(ctx.currentTime + delay);
+        o.stop(ctx.currentTime + delay + 0.18);
+      });
+    } catch(e){}
+  }
+
+  /* Suara "uncheck" — nada turun untuk toggle undone */
+  function soundUncheck() {
+    try {
+      const ctx = createCtx();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = 'sine';
+      o.frequency.setValueAtTime(600, ctx.currentTime);
+      o.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.15);
+      g.gain.setValueAtTime(0.25, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+      o.start(); o.stop(ctx.currentTime + 0.15);
+    } catch(e){}
+  }
+
+  /* Suara "swoosh" singkat untuk delete */
+  function soundDelete() {
+    try {
+      const ctx = createCtx();
+      const bufferSize = ctx.sampleRate * 0.15;
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'highpass'; filter.frequency.value = 1000;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.3, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+      source.connect(filter); filter.connect(g); g.connect(ctx.destination);
+      source.start(); source.stop(ctx.currentTime + 0.15);
+    } catch(e){}
+  }
+
+  /* Suara "click" ringan untuk ganti background */
+  function soundBg() {
+    try {
+      const ctx = createCtx();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = 'square';
+      o.frequency.setValueAtTime(220, ctx.currentTime);
+      o.frequency.exponentialRampToValueAtTime(110, ctx.currentTime + 0.06);
+      g.gain.setValueAtTime(0.15, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06);
+      o.start(); o.stop(ctx.currentTime + 0.06);
+    } catch(e){}
+  }
+
+  /* ── Livewire event listeners ── */
+  document.addEventListener('todo-added',   function (e) {
+    soundAdd();
+    // Scroll ke item terbaru setelah DOM diupdate
+    setTimeout(function () {
+     var items = document.querySelectorAll('.nb-todo-item');
+if (items.length) {
+    var newest = items[0]; // ← item pertama = terbaru
+    newest.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    newest.style.outline = '3px solid #FF3C00';
+    setTimeout(function () { newest.style.outline = ''; }, 800);
+}
+    }, 80);
+  });
+
+  document.addEventListener('todo-toggled', function (e) {
+    e.detail.done ? soundCheck() : soundUncheck();
+  });
+
+  document.addEventListener('todo-deleted', function () { soundDelete(); });
+  document.addEventListener('bg-changed',   function () { soundBg(); });
+
+  /* ── Keyboard scroll handling (existing) ── */
+  var input      = document.getElementById('nb-input');
+  var formBar    = document.getElementById('nb-form-bar');
+  var scrollArea = document.getElementById('nb-scroll-area');
+  if (!input || !formBar || !scrollArea) return;
+
+  function scrollFormIntoView() {
+    setTimeout(function () {
+      formBar.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }, 350);
+  }
+
+  input.addEventListener('focus', scrollFormIntoView);
+
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', function () {
+      if (window.visualViewport.height < window.innerHeight * 0.85) {
         setTimeout(function () {
           formBar.scrollIntoView({ behavior: 'smooth', block: 'end' });
-        }, 350);
+        }, 100);
       }
+    });
+  }
 
-      // Saat input difokus (keyboard muncul)
-      input.addEventListener('focus', scrollFormIntoView);
-
-      // Android: visualViewport resize event (lebih akurat)
-      if (window.visualViewport) {
-        window.visualViewport.addEventListener('resize', function () {
-          // Hitung apakah keyboard sedang tampil
-          var keyboardVisible = window.visualViewport.height < window.innerHeight * 0.85;
-          if (keyboardVisible) {
-            setTimeout(function () {
-              formBar.scrollIntoView({ behavior: 'smooth', block: 'end' });
-            }, 100);
-          }
-        });
-      }
-
-      // Livewire: setelah update DOM, jaga scroll tetap di bawah jika input aktif
-      document.addEventListener('livewire:update', function () {
-        if (document.activeElement === input) {
-          scrollArea.scrollTop = scrollArea.scrollHeight;
-        }
-      });
-    })();
-  </script>
+  document.addEventListener('livewire:update', function () {
+    if (document.activeElement === input) {
+      scrollArea.scrollTop = scrollArea.scrollHeight;
+    }
+  });
+})();
+</script>
 
 </div>
