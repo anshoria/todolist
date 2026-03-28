@@ -40,7 +40,7 @@ class LoginForm extends Component
         $this->alertType    = 'success';
         $this->alertMessage = 'Login berhasil! Mengalihkan...';
 
-        return $this->redirect('/todos', navigate: true);
+        return $this->redirect('/todos');
     }
 
     public function render()
