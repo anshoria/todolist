@@ -77,7 +77,6 @@
             style="font-family:'Space Grotesk',sans-serif">To-Do List</h1>
         <p class="nb-subtitle text-xs font-bold uppercase tracking-widest opacity-40 mb-0.5">My Tasks</p>
         <p class="nb-subtitle text-xs font-bold uppercase tracking-widest opacity-30 mb-4">Made by Anshoria</p>
-        <h1>update</h1>
     </div>
 
     <form action="{{ route('logout') }}" method="POST">
